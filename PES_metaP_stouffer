@@ -1,0 +1,74 @@
+#### THIS IS A META-P ANALYSIS FOLLOW ON SCRIPT FROM WILLIAM R REAY PES SCRIPT
+see: https://github.com/Williamreay pharmagenic_enrichment_score
+
+
+## Combining phenotypes for PES analysis
+## loading all_Tclin_sets.csv files into R at each threshold  
+## Applying Stouffer method for metaP 
+## Laura Greco :) 
+
+## Check if dependencies are present, if not, install them
+
+list.of.packages <- c("optparse", "data.table", "dplyr")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
+## Load dependencies 
+
+library(optparse)
+library(data.table)
+library(dplyr)
+
+## command line inputs
+option_list = list(
+  make_option("--phenotype1", action="store", default=NA, type='character'),
+  make_option("--phenotype2", action="store", default = NA, type='character')
+
+)
+opt = parse_args(OptionParser(option_list=option_list))
+
+#Set working directory
+setwd(paste(opt$path))
+
+
+## Read in CSV trait 1, filter by P_threshold 1 
+TRAIT1 <- read.csv("")
+TRAIT1 <- TRAIT1 %>% dplyr::filter(TRAIT1$P_threshold == 1)
+
+## Read in CSV trait 2, filter by P_threshold 1 
+TRAIT1 <- read.csv("")
+TRAIT2 <- TRAIT2 %>% dplyr::filter(SZ$P_threshold == 1)
+
+## Merge data by P-values  
+TRAIT1_TRAIT2 <- merge.data.table(TRAIT1, TRAIT1, by.x = "VARIABLE", by.y = "VARIABLE")
+
+#calculate Z from BETA/SE 
+TRAIT1_TRAIT2$Z.x <- TRAIT1_TRAIT2$BETA.x/TRAIT1_TRAIT2$SE.x
+TRAIT1_TRAIT2$Z.y <- TRAIT1_TRAIT2$BETA.y/TRAIT1_TRAIT2$SE.y
+
+#log transform p values
+TRAIT1_TRAIT2$logp.x <- log(TRAIT1_TRAIT2$P.x)
+TRAIT1_TRAIT2$logp.y <- log(TRAIT1_TRAIT2$P.y)
+
+#work in log space
+TRAIT1_TRAIT2$Zi.x <- qnorm(TRAIT1_TRAIT2$logp.x, log.p= TRUE)
+TRAIT1_TRAIT2$Zi.y <- qnorm(TRAIT1_TRAIT2$logp.y, log.p= TRUE)
+
+#Assign numerical value to weights
+w1 <- 28757 #AD GWAS 
+w2 <- 130644 #SZ GWAS
+w3 <- w1+w2
+
+#calculate Z 
+TRAIT1_TRAIT2$stouffersZ <- ((w1*TRAIT1_TRAIT2$Zi.x) + (w2*TRAIT1_TRAIT2$Zi.y))/sqrt((w1^2 + w2^2))
+
+#calculate metaP with Stouffers Z
+TRAIT1_TRAIT2$MetaP <- pnorm(TRAIT1_TRAIT2$stouffersZ)
+
+#filter to check
+TRAIT1_TRAIT2 %>% select(P.x, P.y, stouffersZ, MetaP) %>% filter(MetaP < 0.005)
+
+#FDR check meta-P
+TRAIT1_TRAIT2$FDR <- p.adjust(TRAIT1_TRAIT2$MetaP, method="fdr")
+
+#END 
